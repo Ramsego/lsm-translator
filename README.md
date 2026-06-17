@@ -1,13 +1,20 @@
 # LSM Landmark Dataset & Recognition Pipeline
 
-A reproducible pipeline that builds a landmark dataset for **Lengua de Señas Mexicana (LSM)** —
-Mexican Sign Language — from public YouTube videos, and (work in progress) a sign-recognition
-classifier on top of it.
+A reproducible pipeline for **Lengua de Señas Mexicana (LSM)** — Mexican Sign Language. It builds a
+landmark **word bank** of isolated signs from public YouTube videos, to be used as a reference
+library for the project's actual goal: recognizing **continuous** signing from a broadcast
+interpreter (Mexican presidential press conferences, the *mañanera*) aligned to public transcripts.
 
 > **Status:** Phase 1 complete — 490 isolated signs extracted, validated, and stored as
-> ML-ready landmark arrays. Classifier and continuous-signing (mañanera) work are in progress.
+> ML-ready landmark arrays. This is a **single-signer, ~1-example-per-sign reference set**, not a
+> competitive standalone isolated-sign dataset (see Related work). The classifier and the
+> continuous-signing (mañanera) work are in progress.
 
-There is currently no public LSM landmark dataset; this is an attempt to fill that gap.
+**Scope, honestly:** isolated LSM sign recognition with MediaPipe is already an established area
+(see Related work). Phase 1 here is deliberately a lightweight *word bank* to bootstrap labeling of
+continuous signing — where the real, underexplored gap for LSM lies. Building a continuous-signing
+dataset from a broadcast interpreter + transcripts has been done for German, Uruguayan, and Chinese
+sign languages, but not, as far as we found, for LSM.
 
 ## What's in the dataset
 
@@ -71,6 +78,25 @@ row  = meta.iloc[0]
 arr  = np.load(f"data/{row.array_path}")   # shape [num_frames, 75, 3]
 print(row.label, arr.shape)
 ```
+
+## Related work
+
+Isolated LSM recognition with MediaPipe landmarks is an active area; this project does **not** claim
+novelty there. Prior public LSM resources include:
+
+- **MSL-150** — public keypoint-only dataset, 150 LSM signs from a *native signer*, MediaPipe
+  Holistic. Closest comparison to Phase 1 here, and stronger as a standalone dataset.
+  <https://github.com/armandobecerril/MSL-150-Dataset>
+- **Mexican Sign Language Recognition: Dataset Creation and Performance Evaluation Using MediaPipe
+  and Machine Learning** (MDPI Electronics, 2025). <https://www.mdpi.com/2079-9292/14/7/1423>
+- **MX-ITESO-100** — 100 signs, 5,000 videos, 3 signers (cited in the Frontiers 2026 review of
+  dynamic LSM recognition).
+- **Spanish → LSM gloss corpus** (text only) — Nature Scientific Data, 2025.
+  <https://www.nature.com/articles/s41597-025-04871-7>
+
+What appears underexplored for LSM, and what this project targets, is **continuous** signing from a
+broadcast interpreter aligned to transcripts — analogous to RWTH-PHOENIX (German) or iLSU-T
+(Uruguayan), but for LSM.
 
 ## Known limitations
 
