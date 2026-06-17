@@ -1,0 +1,13 @@
+# Large data + raw videos (regenerable by the pipeline; distributed as a release)
+videos/
+data/
+
+# Google MediaPipe model files (download via README; not ours to redistribute)
+scripts/*.task
+
+# Python
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
