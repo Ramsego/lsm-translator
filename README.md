@@ -34,7 +34,10 @@ sign languages, but not, as far as we found, for LSM.
 - **Temporally trimmed**: each array is cropped to the active signing window (largest contiguous
   hand-present segment), removing silent lead/trail padding and embedded outro cards. This dropped
   the overall NaN fraction from ~0.53 to ~0.18 and makes DTW alignment far more reliable.
-- Left-handed signers are mirrored (`x → 1 − x`) so all signs are stored right-handed.
+- **Stored in raw, as-detected orientation** — coordinates are *not* canonicalized for handedness.
+  Handedness invariance is handled at match time: the DTW classifier compares a query against both
+  itself and its mirror (`handedness.mirror_array`, which flips `x` *and* swaps the hand channels)
+  and takes the smaller distance. `dominant_hand` in the metadata is informational only.
 - Metadata (label, source, aliases, signer/channel, dominant hand, frame counts) in both SQLite and CSV.
 
 ## Pipeline
@@ -42,9 +45,11 @@ sign languages, but not, as far as we found, for LSM.
 | Step | Script | What it does |
 |------|--------|--------------|
 | 1 | `scripts/01_scrape.py` | Download all videos + metadata from a YouTube channel with `yt-dlp` |
-| 2 | `scripts/02_extract.py` | Extract hand + pose + face landmarks per frame (MediaPipe Tasks API) |
+| 2 | `scripts/02_extract.py` | Extract hand + pose + face landmarks per frame (MediaPipe Tasks API), raw orientation |
 | 3 | `scripts/03_ingest.py` | Build dense `[frames, 116, 3]` arrays + metadata DB/CSV |
 | 4 | `scripts/trim_arrays.py` | Crop each array to its active signing window (drops padding + outro cards) |
+| — | `scripts/handedness.py` | Shared handedness helpers (`mirror_array`, motion-based dominance) |
+| — | `scripts/unmirror.py` | One-time pass: restore raw orientation from old canonicalized data |
 | — | `scripts/quality_report.py` | Per-video coverage + flags → `data/quality_report.csv` |
 | — | `scripts/verify_extraction.py` | Overlay landmarks on real video frames to spot tracking misses |
 | — | `scripts/inspect_trim.py` | Before/after PNGs of trimmed arrays for visual QA |
@@ -118,8 +123,6 @@ broadcast interpreter aligned to transcripts — analogous to RWTH-PHOENIX (Germ
 - **Few examples per sign** — the core `chnt` set is one signer, ~1 video per label; `wikisigns`
   adds different signers but the two halves don't overlap, so a trained classifier isn't viable yet
   and DTW nearest-neighbor is the appropriate method.
-- **Dominant-hand heuristic** — inferred from single-hand frames; it can flip on two-handed signs
-  when the non-dominant hand is briefly more active (affects a minority of signs).
 - **Labels unverified by a fluent signer** — labels derive from YouTube titles / wikisigns pages,
   normalized programmatically but not checked by a native LSM signer.
 - **Source quality** — landmarks depend on MediaPipe; fast motion or hands near the face

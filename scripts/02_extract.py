@@ -1,10 +1,14 @@
 import argparse
 import json
+import sys
 import cv2
 import mediapipe as mp
 from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from handedness import motion_dominant
 
 VIDEOS_DIR = Path("/Volumes/Crucial X8/LSM_Translator/videos/isolated")
 HAND_MODEL = Path("scripts/hand_landmarker.task")
@@ -47,26 +51,6 @@ def make_detectors():
         vision.PoseLandmarker.create_from_options(pose_opts),
         vision.FaceLandmarker.create_from_options(face_opts),
     )
-
-def infer_dominant_hand(frames: list) -> str:
-    left_only = 0
-    right_only = 0
-    for frame in frames:
-        sources = {lm["source"] for lm in frame}
-        has_left = "left_hand" in sources
-        has_right = "right_hand" in sources
-        if has_left and not has_right:
-            left_only += 1
-        elif has_right and not has_left:
-            right_only += 1
-    return "left" if left_only > right_only else "right"
-
-def normalize_handedness(landmarks: list, dominant_hand: str) -> list:
-    if dominant_hand == "right":
-        return landmarks
-    for lm in landmarks:
-        lm["x"] = 1 - lm["x"]
-    return landmarks
 
 def extract_landmarks(video_path: Path) -> tuple:
     hand_detector, pose_detector, face_detector = make_detectors()
@@ -116,8 +100,9 @@ def extract_landmarks(video_path: Path) -> tuple:
     face_detector.close()
 
     all_landmarks = [lm for frame in frames for lm in frame]
-    dominant_hand = infer_dominant_hand(frames)
-    all_landmarks = normalize_handedness(all_landmarks, dominant_hand)
+    # Store RAW, as-detected coordinates. Handedness invariance is handled at DTW
+    # query time (handedness.mirror_array); dominant_hand is informational only.
+    dominant_hand = motion_dominant(all_landmarks)
 
     return all_landmarks, dominant_hand
 
@@ -146,7 +131,8 @@ if __name__ == "__main__":
         landmarks, dominant_hand = extract_landmarks(video_path)
 
         with open(landmark_file, "w") as f:
-            json.dump({"dominant_hand": dominant_hand, "landmarks": landmarks}, f)
+            json.dump({"dominant_hand": dominant_hand, "orientation": "raw",
+                       "landmarks": landmarks}, f)
 
         # Source video is intentionally retained (we no longer delete it) so the
         # dataset can be re-extracted without re-downloading.
