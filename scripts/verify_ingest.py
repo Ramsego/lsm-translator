@@ -23,9 +23,12 @@ def main():
     conn = sqlite3.connect(DB_PATH)
     all_passed = True
 
-    # 1. Expected video count
+    # 1. Expected video count per source (chnt word bank + wikisigns)
     count = conn.execute("SELECT COUNT(*) FROM videos").fetchone()[0]
-    all_passed &= check(f"video count == 490 (got {count})", count == 490)
+    by_source = dict(conn.execute("SELECT source, COUNT(*) FROM videos GROUP BY source"))
+    all_passed &= check(f"chnt count == 490 (got {by_source.get('chnt')})", by_source.get("chnt") == 490)
+    all_passed &= check(f"total videos > 490 (got {count})", count > 490)
+    print(f"        by source: {by_source}")
 
     # 2. No excluded IDs leaked in
     ids = {row[0] for row in conn.execute("SELECT youtube_id FROM videos")}
@@ -59,10 +62,10 @@ def main():
             missing.append(yid)
             continue
         arr = np.load(p)
-        if arr.shape != (num_frames, 75, 3):
+        if arr.shape != (num_frames, 116, 3):
             bad_shape.append((yid, arr.shape))
     all_passed &= check(f"all .npy files exist (missing: {len(missing)})", not missing)
-    all_passed &= check(f"all arrays shaped [frames,75,3] (bad: {len(bad_shape)})", not bad_shape)
+    all_passed &= check(f"all arrays shaped [frames,116,3] (bad: {len(bad_shape)})", not bad_shape)
 
     # 6. Sanity on one array: pose should be mostly present, NaN fraction not total
     sample = conn.execute("SELECT array_path FROM videos LIMIT 1").fetchone()[0]

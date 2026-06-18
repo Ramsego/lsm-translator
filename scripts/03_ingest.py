@@ -1,6 +1,9 @@
+import argparse
 import json
+import re
 import sqlite3
 import csv
+import unicodedata
 from pathlib import Path
 from datetime import date
 import numpy as np
@@ -22,12 +25,44 @@ EXCLUDE = {
     "UC6N5RSv511MWWkq4BdzRl0A",    # channel metadata, not a video
 }
 
-# Where each source's landmarks live in the 75-row array
-SOURCE_OFFSET = {"left_hand": 0, "right_hand": 21, "pose": 42}
-NUM_LANDMARKS = 75  # 21 + 21 + 33
+# Where each source's landmarks live in the 116-row array
+SOURCE_OFFSET = {"left_hand": 0, "right_hand": 21, "pose": 42, "face": 75}
+NUM_LANDMARKS = 116  # 21 + 21 + 33 + 41 (curated face)
+
+_VARIEDAD_RE = re.compile(r'\s*\((variedad\s+distinta[^)]*|regionalismo[^)]*)\)', re.I)
+
+def normalize_label(s: str) -> str:
+    if not s:
+        return s
+    s = re.sub(r'\s*\(diccionario\s+lsm\)\s*', ' ', s, flags=re.I)
+    s = re.sub(r'\s*diccionario\s+\(lsm\)\s*', ' ', s, flags=re.I)
+    s = re.sub(r'\s+lsm\s+diccionario\s+lsm\s*$', '', s, flags=re.I)
+    s = re.sub(r'\s+diccionario\s+lsm\s*$', '', s, flags=re.I)
+    s = re.sub(r'\s*\((lsm|asl)\)\s*$', '', s, flags=re.I)
+    s = _VARIEDAD_RE.sub('', s)
+    s = re.sub(r'[¿?¡!]', '', s)
+    s = re.sub(r'\(([a-zA-Z])\)', r' (\1)', s)
+    s = unicodedata.normalize('NFC', s)
+    s = re.sub(r'\s+', ' ', s).strip().lower()
+    return s
+
+def extract_variedad(s: str) -> str | None:
+    m = _VARIEDAD_RE.search(s)
+    return m.group(0).strip().strip('()').lower() if m else None
+
+def split_primary_aliases(title: str, existing_aliases: list) -> tuple:
+    variedad = extract_variedad(title)
+    parts = re.split(r',(?![^(]*\))', title)
+    parts = [normalize_label(p) for p in parts]
+    parts = [p for p in parts if p]
+    primary = parts[0] if parts else ''
+    extra = parts[1:] if len(parts) > 1 else []
+    normed = [normalize_label(a) for a in existing_aliases if normalize_label(a) != primary]
+    all_aliases = list(dict.fromkeys(normed + extra + ([variedad] if variedad else [])))
+    return primary, all_aliases if all_aliases else None
 
 def build_array(landmarks: list):
-    """Turn the list of detected points into a dense [frames, 75, 3] array (NaN = missing)."""
+    """Turn the list of detected points into a dense [frames, 116, 3] array (NaN = missing)."""
     if not landmarks:
         return None, 0, 0
 
@@ -45,7 +80,8 @@ def build_array(landmarks: list):
     return arr, num_frames, len(hand_frames)
 
 def read_info(folder: Path) -> dict:
-    info_files = list(folder.glob("*.info.json"))
+    # ChNt folders use yt-dlp's "<id>.mp4.info.json"; wikisigns use a plain "info.json".
+    info_files = list(folder.glob("*.info.json")) or list(folder.glob("info.json"))
     if not info_files:
         return {}
     with open(info_files[0], encoding="utf-8", errors="ignore") as f:
@@ -65,21 +101,43 @@ def setup_db(conn):
             num_frames INTEGER,
             num_hand_frames INTEGER,
             array_path TEXT,
-            video_type TEXT
+            video_type TEXT,
+            source TEXT,
+            aliases TEXT
         )
     """)
+    # Tolerate pre-existing tables created before these columns were added.
+    existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(videos)")}
+    if "source" not in existing_cols:
+        conn.execute("ALTER TABLE videos ADD COLUMN source TEXT")
+    if "aliases" not in existing_cols:
+        conn.execute("ALTER TABLE videos ADD COLUMN aliases TEXT")
     conn.commit()
 
 def main():
+    parser = argparse.ArgumentParser(description="Ingest landmarks.json into lsm.db + .npy arrays.")
+    parser.add_argument("--videos-dir", type=Path, default=VIDEOS_DIR,
+                        help="Folder of per-video subfolders to ingest.")
+    parser.add_argument("--source", default="chnt",
+                        help="Tag rows with this source (e.g. 'chnt', 'wikisigns').")
+    parser.add_argument("--rebuild", action="store_true",
+                        help="Clear the videos table first and regenerate everything "
+                             "(needed when array shape or schema changed).")
+    args = parser.parse_args()
+
     conn = sqlite3.connect(DB_PATH)
     setup_db(conn)
 
+    if args.rebuild:
+        conn.execute("DELETE FROM videos")
+        conn.commit()
+        print("Rebuild: cleared videos table.")
+
     existing = {row[0] for row in conn.execute("SELECT youtube_id FROM videos")}
-    today = date.today().isoformat()
     ingested = 0
 
-    for folder in sorted(VIDEOS_DIR.iterdir()):
-        if not folder.is_dir() or folder.name in EXCLUDE:
+    for folder in sorted(args.videos_dir.iterdir()):
+        if not folder.is_dir() or folder.name in EXCLUDE or folder.name.startswith("._"):
             continue
         if folder.name in existing:
             continue
@@ -100,15 +158,19 @@ def main():
 
         info = read_info(folder)
         title = info.get("title", "")
+        raw = title or info.get("label", "")
+        label, extra_aliases = split_primary_aliases(raw, info.get("aliases") or [])
+        aliases_json = json.dumps(extra_aliases, ensure_ascii=False) if extra_aliases else None
         conn.execute(
             "INSERT OR IGNORE INTO videos "
             "(youtube_id, title, label, channel, upload_date, duration, "
-            " dominant_hand, num_frames, num_hand_frames, array_path, video_type) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            " dominant_hand, num_frames, num_hand_frames, array_path, video_type, "
+            " source, aliases) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 folder.name,
                 title,
-                title.strip().lower(),
+                label,
                 info.get("channel", ""),
                 info.get("upload_date", ""),
                 info.get("duration", 0),
@@ -117,6 +179,8 @@ def main():
                 num_hand_frames,
                 f"arrays/{folder.name}.npy",
                 "isolated",
+                args.source,
+                aliases_json,
             ),
         )
         ingested += 1
