@@ -1,12 +1,12 @@
-"""Unit tests for the DTW classifier core (scripts/05_classify.py)."""
+"""Unit tests for the DTW classifier core (experiments/spotter/classify.py)."""
 
 import sys
 from pathlib import Path
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).parent))
-import importlib
-clf = importlib.import_module("05_classify")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+import classify as clf
 from handedness import mirror_array
 
 N_LM = 116

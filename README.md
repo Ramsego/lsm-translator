@@ -55,7 +55,11 @@ sign languages, but not, as far as we found, for LSM.
 | — | `scripts/inspect_trim.py` | Before/after PNGs of trimmed arrays for visual QA |
 | — | `scripts/visualize.py` / `batch_visualize.py` | Render landmarks over frames for visual QA |
 | — | `scripts/verify_ingest.py` | Automated integrity checks on the ingested dataset |
-| 5 | `scripts/05_classify.py` | DTW nearest-neighbor sign spotter *(in progress)* |
+
+> An exploratory DTW nearest-neighbor sign spotter built on this dataset lives in
+> [`experiments/spotter/`](experiments/spotter/). It is a baseline, not part of the dataset pipeline —
+> open-vocabulary cross-signer accuracy is low (see its README); its intended role is Phase-2
+> bootstrapping.
 
 ## Setup
 

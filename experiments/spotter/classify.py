@@ -5,10 +5,10 @@ Given a landmark clip ([frames, 116, 3]), find the closest reference sign(s) in 
 word bank. Hands-only distance metric, body-relative normalization (via pose
 shoulders), and handedness invariance via mirror-at-query (handedness.mirror_array).
 
-Usage:
-    python scripts/05_classify.py --npy data/arrays/<id>.npy   # top-5 for one clip
-    python scripts/05_classify.py --eval                        # leave-one-out accuracy
-    python scripts/05_classify.py --eval --no-normalize         # measure normalization effect
+Run from the repo root (data paths are relative to CWD):
+    python experiments/spotter/classify.py --npy data/arrays/<id>.npy  # top-5 for one clip
+    python experiments/spotter/classify.py --eval                      # leave-one-out accuracy
+    python experiments/spotter/classify.py --eval --no-normalize       # normalization effect
 """
 
 import argparse
@@ -20,7 +20,7 @@ from collections import Counter, defaultdict
 import numpy as np
 from dtaidistance import dtw_ndim
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 from handedness import mirror_array
 
 DATA_DIR = Path("data")

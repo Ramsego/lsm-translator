@@ -15,8 +15,9 @@ import time
 from pathlib import Path
 from collections import defaultdict
 
-sys.path.insert(0, str(Path(__file__).parent))
-clf = __import__("05_classify")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+import classify as clf
 
 # Curated variants (not full cartesian). Each is a partial cfg over DEFAULT_CFG.
 VARIANTS = {
