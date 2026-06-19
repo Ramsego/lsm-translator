@@ -1,0 +1,4 @@
+# Spike artifacts / data — not source
+recuadro_check/
+transcripts/
+__pycache__/
