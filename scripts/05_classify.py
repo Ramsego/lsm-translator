@@ -30,8 +30,22 @@ DB_PATH = DATA_DIR / "lsm.db"
 HAND_ROWS = slice(0, 42)      # 0-20 left hand, 21-41 right hand
 L_SHOULDER = 42 + 11          # MediaPipe pose idx 11 -> array row 53
 R_SHOULDER = 42 + 12          # MediaPipe pose idx 12 -> array row 54
+# Arm landmarks (shoulders, elbows, wrists) carry where the hand is on the body.
+POSE_ARM_ROWS = [42 + i for i in (11, 12, 13, 14, 15, 16)]  # rows 53-58
 
 DTW_WINDOW = 10               # Sakoe-Chiba band: limits warping, speeds up, reduces drift
+
+# A feature config. Default chosen via tune_features.py sweep: per-clip shoulder
+# normalization + arm landmarks scored best (others were within noise; velocity /
+# z-score hurt — they amplify MediaPipe jitter on short clips). Cross-signer 1-shot
+# accuracy is inherently low regardless; this is the modest best.
+DEFAULT_CFG = {
+    "norm": "per_clip",    # 'per_frame' | 'per_clip' | 'none'
+    "velocity": False,     # append frame-to-frame deltas to positions
+    "vel_only": False,     # use deltas alone (position-invariant motion shape)
+    "zscore": False,       # standardize each feature dim across the clip
+    "include_pose": True,  # add arm landmarks (rows 53-58)
+}
 
 # Prefer the compiled C backend; fall back to pure Python if it isn't available.
 try:
@@ -55,39 +69,62 @@ def _clip_shoulder_stats(arr):
     return mid.astype(np.float64), float(width if width > 1e-6 else 1.0)
 
 
-def featurize(arr, normalize=True):
-    """[frames,116,3] -> [T,84] hands-only (x,y) feature sequence.
+def featurize(arr, cfg=None):
+    """[frames,116,3] -> [T, D] feature sequence per the config.
 
-    Keeps only frames with >=1 hand present. When normalize=True, each frame is
-    re-centered on the shoulder midpoint and scaled by shoulder width so different
-    signers / camera distances align. A missing hand's 21 points become the body
-    center (0,0 after normalization).
+    Keeps only frames with >=1 hand present. Positions can be normalized into a
+    body frame (shoulder midpoint / width), per-frame or once per clip. Optionally
+    appends or replaces with velocity (frame-to-frame deltas), adds arm landmarks,
+    and/or z-normalizes each feature dimension. Missing landmarks fill to the body
+    center (0 when normalized, else the clip's fallback midpoint).
     """
-    hands = arr[:, HAND_ROWS, :2].astype(np.float64)     # [F,42,2]
-    has_hand = ~np.isnan(hands).all(axis=(1, 2))          # [F]
-    if not has_hand.any():
-        return np.empty((0, 84), np.float64)
+    cfg = {**DEFAULT_CFG, **(cfg or {})}
+    rows = list(range(0, 42)) + (POSE_ARM_ROWS if cfg["include_pose"] else [])
+
+    hands = arr[:, HAND_ROWS, :2]
+    has_hand = ~np.isnan(hands).all(axis=(1, 2))          # frames with >=1 hand
+    kept = np.where(has_hand)[0]
+    P = len(rows)
+    if len(kept) == 0:
+        return np.empty((0, P * 2), np.float64)
 
     fb_mid, fb_w = _clip_shoulder_stats(arr)
+    pts = arr[np.ix_(kept, rows)][:, :, :2].astype(np.float64)  # [T,P,2]
 
-    feats = []
-    for f in np.where(has_hand)[0]:
-        frame = hands[f].copy()                            # [42,2]
-        if normalize:
-            ls = arr[f, L_SHOULDER, :2]
-            rs = arr[f, R_SHOULDER, :2]
-            if np.isnan(ls).any() or np.isnan(rs).any():
-                mid, w = fb_mid, fb_w
-            else:
-                mid = (ls + rs) / 2
-                w = np.linalg.norm(ls - rs)
-                w = float(w if w > 1e-6 else fb_w)
-            frame = (frame - mid) / w
-        # Absent landmarks (NaN) -> body center (0 if normalized, else fallback mid)
-        fill = 0.0 if normalize else fb_mid
-        frame = np.where(np.isnan(frame), fill, frame)
-        feats.append(frame.reshape(-1))                    # 84-vec
-    return np.ascontiguousarray(feats, dtype=np.float64)
+    if cfg["norm"] == "none":
+        fill = fb_mid
+    else:
+        if cfg["norm"] == "per_clip":
+            mid = np.broadcast_to(fb_mid, (len(kept), 2)).copy()
+            w = np.full(len(kept), fb_w)
+        else:  # per_frame
+            ls = arr[kept, L_SHOULDER, :2]
+            rs = arr[kept, R_SHOULDER, :2]
+            valid = ~(np.isnan(ls).any(1) | np.isnan(rs).any(1))
+            mid = (ls + rs) / 2
+            w = np.linalg.norm(ls - rs, axis=1)
+            mid[~valid] = fb_mid
+            w[~valid] = fb_w
+            w[w <= 1e-6] = fb_w
+        pts = (pts - mid[:, None, :]) / w[:, None, None]
+        fill = np.array([0.0, 0.0])
+
+    nan_mask = np.isnan(pts)
+    pts[nan_mask] = np.broadcast_to(fill, pts.shape)[nan_mask]
+
+    pos = pts.reshape(len(kept), -1)                       # [T, P*2]
+    vel = np.diff(pos, axis=0, prepend=pos[:1])            # [T, P*2]
+    if cfg["vel_only"]:
+        feat = vel
+    elif cfg["velocity"]:
+        feat = np.concatenate([pos, vel], axis=1)
+    else:
+        feat = pos
+
+    if cfg["zscore"]:
+        feat = (feat - feat.mean(0)) / (feat.std(0) + 1e-8)
+
+    return np.ascontiguousarray(feat, dtype=np.float64)
 
 
 def _dist(qf, rf):
@@ -96,7 +133,7 @@ def _dist(qf, rf):
     return _DTW(qf, rf, window=DTW_WINDOW)
 
 
-def load_bank(normalize=True):
+def load_bank(cfg=None):
     """Return list of dicts: youtube_id, label, source, feat, feat_mirror."""
     conn = sqlite3.connect(DB_PATH)
     rows = conn.execute(
@@ -111,8 +148,8 @@ def load_bank(normalize=True):
             "youtube_id": yid,
             "label": label,
             "source": source,
-            "feat": featurize(arr, normalize),
-            "feat_mirror": featurize(mirror_array(arr), normalize),
+            "feat": featurize(arr, cfg),
+            "feat_mirror": featurize(mirror_array(arr), cfg),
         })
     return bank
 
@@ -130,21 +167,10 @@ def classify(query_feat, query_feat_mirror, bank, k=5, exclude_id=None):
     return [(lbl, d, src, yid) for d, lbl, src, yid in scored[:k]]
 
 
-def run_single(npy_path, normalize):
-    arr = np.load(npy_path)
-    bank = load_bank(normalize)
-    qf = featurize(arr, normalize)
-    qfm = featurize(mirror_array(arr), normalize)
-    top = classify(qf, qfm, bank, k=5)
-    print(f"\nTop-5 matches for {Path(npy_path).name}:")
-    for i, (lbl, d, src, yid) in enumerate(top, 1):
-        print(f"  {i}. {lbl:25s}  dist={d:8.3f}  [{src}] {yid}")
-
-
-def run_eval(normalize):
-    bank = load_bank(normalize)
+def evaluate(bank, query_filter=None, verbose=False):
+    """Leave-one-out over the bank. query_filter(ref)->bool restricts which clips
+    are used as queries (refs are always the full bank). Returns metric dicts."""
     label_counts = Counter(r["label"] for r in bank)
-    # labels present in both sources = different-signer generalization test
     src_by_label = defaultdict(set)
     for r in bank:
         src_by_label[r["label"]].add(r["source"])
@@ -155,8 +181,8 @@ def run_eval(normalize):
     cross = {"top1": 0, "top5": 0, "n": 0}
     wrong = Counter()
 
-    print(f"Evaluating {len(bank)} clips (normalize={normalize})... this takes a few minutes.")
-    for i, q in enumerate(bank):
+    queries = [q for q in bank if query_filter is None or query_filter(q)]
+    for i, q in enumerate(queries):
         top = classify(q["feat"], q["feat_mirror"], bank, k=5, exclude_id=q["youtube_id"])
         preds = [t[0] for t in top]
         t1 = preds[0] == q["label"]
@@ -166,26 +192,46 @@ def run_eval(normalize):
         overall["top1"] += t1; overall["top5"] += t5
         if not t1:
             wrong[(q["label"], preds[0])] += 1
-
         if label_counts[q["label"]] > 1:
             multi["n"] += 1; multi["top1"] += t1; multi["top5"] += t5
         if q["label"] in cross_labels:
             cross["n"] += 1; cross["top1"] += t1; cross["top5"] += t5
+        if verbose and (i + 1) % 100 == 0:
+            print(f"  {i+1}/{len(queries)}...")
 
-        if (i + 1) % 100 == 0:
-            print(f"  {i+1}/{len(bank)}...")
+    return {"overall": overall, "multi": multi, "cross": cross, "wrong": wrong}
 
-    def pct(d, key):
-        return 100 * d[key] / d["n"] if d["n"] else 0.0
+
+def _pct(d, key):
+    return 100 * d[key] / d["n"] if d["n"] else 0.0
+
+
+def run_single(npy_path, cfg):
+    arr = np.load(npy_path)
+    bank = load_bank(cfg)
+    qf = featurize(arr, cfg)
+    qfm = featurize(mirror_array(arr), cfg)
+    top = classify(qf, qfm, bank, k=5)
+    print(f"\nTop-5 matches for {Path(npy_path).name}:")
+    for i, (lbl, d, src, yid) in enumerate(top, 1):
+        print(f"  {i}. {lbl:25s}  dist={d:8.3f}  [{src}] {yid}")
+
+
+def run_eval(cfg):
+    print(f"Loading bank (cfg={cfg})...")
+    bank = load_bank(cfg)
+    print(f"Evaluating {len(bank)} clips... this takes a few minutes.")
+    r = evaluate(bank, verbose=True)
 
     print("\n=== Leave-one-out accuracy ===")
-    for name, d in [("Overall (all 963, many unmatchable)", overall),
-                    ("Multi-example labels (fair within-bank)", multi),
-                    ("Cross-source (different signers)", cross)]:
-        print(f"  {name:42s}  n={d['n']:4d}  top1={pct(d,'top1'):5.1f}%  top5={pct(d,'top5'):5.1f}%")
+    for name, key in [("Overall (all 963, many unmatchable)", "overall"),
+                      ("Multi-example labels (fair within-bank)", "multi"),
+                      ("Cross-source (different signers)", "cross")]:
+        d = r[key]
+        print(f"  {name:42s}  n={d['n']:4d}  top1={_pct(d,'top1'):5.1f}%  top5={_pct(d,'top5'):5.1f}%")
 
     print("\n  Most common confusions (true -> guessed):")
-    for (true, guess), n in wrong.most_common(10):
+    for (true, guess), n in r["wrong"].most_common(10):
         print(f"    {true:22s} -> {guess:22s} ({n})")
 
 
@@ -195,12 +241,15 @@ def main():
     ap.add_argument("--eval", action="store_true", help="Leave-one-out accuracy eval.")
     ap.add_argument("--no-normalize", action="store_true", help="Disable body-relative normalization.")
     args = ap.parse_args()
-    normalize = not args.no_normalize
+
+    cfg = dict(DEFAULT_CFG)
+    if args.no_normalize:
+        cfg["norm"] = "none"
 
     if args.eval:
-        run_eval(normalize)
+        run_eval(cfg)
     elif args.npy:
-        run_single(args.npy, normalize)
+        run_single(args.npy, cfg)
     else:
         ap.error("pass --npy <file> or --eval")
 

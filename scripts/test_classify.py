@@ -44,8 +44,10 @@ def test_translate_scale_invariant():
     # translate +0.1 in x and scale around origin by 1.3 (shoulders move too)
     b[:, :, 0] = b[:, :, 0] * 1.3 + 0.1
     b[:, :, 1] = b[:, :, 1] * 1.3 + 0.05
-    d_norm = clf._dist(clf.featurize(a, True), clf.featurize(b, True))
-    d_raw = clf._dist(clf.featurize(a, False), clf.featurize(b, False))
+    norm_cfg = {"norm": "per_frame"}
+    raw_cfg = {"norm": "none"}
+    d_norm = clf._dist(clf.featurize(a, norm_cfg), clf.featurize(b, norm_cfg))
+    d_raw = clf._dist(clf.featurize(a, raw_cfg), clf.featurize(b, raw_cfg))
     return check("normalization makes translate+scale copy ~match (norm << raw)",
                  d_norm < 1e-3 and d_norm < d_raw)
 
@@ -84,6 +86,24 @@ def test_nan_frames_dropped():
                  f.shape[0] == 9 and np.isfinite(f).all())
 
 
+def test_velocity_position_invariant():
+    # vel_only should make a pure translation match exactly (motion is identical).
+    a = make_clip()
+    b = a.copy()
+    b[:, :, 0] += 0.2          # shift right; velocity unchanged
+    cfg = {"norm": "none", "vel_only": True}
+    d = clf._dist(clf.featurize(a, cfg), clf.featurize(b, cfg))
+    return check("vel_only is position-invariant (translation -> dist ~0)", d < 1e-6)
+
+
+def test_pose_changes_dim():
+    a = make_clip()
+    a[:, 53:59, :2] = 0.4      # give arm rows some value
+    d_hands = clf.featurize(a, {"norm": "none", "include_pose": False}).shape[1]
+    d_pose = clf.featurize(a, {"norm": "none", "include_pose": True}).shape[1]
+    return check("include_pose widens the feature vector", d_pose > d_hands)
+
+
 def main():
     tests = [
         test_identical_zero,
@@ -91,6 +111,8 @@ def main():
         test_mirror_matched_at_query,
         test_different_is_farther,
         test_nan_frames_dropped,
+        test_velocity_position_invariant,
+        test_pose_changes_dim,
     ]
     results = [t() for t in tests]
     print(f"\n{sum(results)}/{len(results)} tests passed")
