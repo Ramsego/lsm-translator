@@ -17,6 +17,7 @@ import argparse
 import json
 import shutil
 import sys
+import os
 from pathlib import Path
 from collections import Counter
 
@@ -24,8 +25,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from handedness import flip_x_landmarks, motion_dominant
 
 VIDEO_DIRS = [
-    Path("/Volumes/Crucial X8/LSM_Translator/videos/isolated"),
-    Path("/Volumes/Crucial X8/LSM_Translator/videos/wikisigns"),
+    Path(os.environ.get("LSM_DATA_ROOT", "/Volumes/Crucial X8/LSM_Translator")) / "videos" / "isolated",
+    Path(os.environ.get("LSM_DATA_ROOT", "/Volumes/Crucial X8/LSM_Translator")) / "videos" / "wikisigns",
 ]
 
 

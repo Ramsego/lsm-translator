@@ -2,11 +2,12 @@ import csv
 import json
 import re
 import subprocess
+import os
 from pathlib import Path
 from collections import defaultdict
 
 MAP = Path("data/wikisigns_map.csv")
-VIDEOS_DIR = Path("/Volumes/Crucial X8/LSM_Translator/videos/wikisigns")
+VIDEOS_DIR = Path(os.environ.get("LSM_DATA_ROOT", "/Volumes/Crucial X8/LSM_Translator")) / "videos" / "wikisigns"
 VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
 
 def is_junk(word: str) -> bool:

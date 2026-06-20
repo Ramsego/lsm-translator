@@ -1,10 +1,11 @@
 import json
 import cv2
 import numpy as np
+import os
 from pathlib import Path
 import sys
 
-VIDEOS_DIR = Path("/Volumes/Crucial X8/LSM_Translator/videos/isolated")
+VIDEOS_DIR = Path(os.environ.get("LSM_DATA_ROOT", "/Volumes/Crucial X8/LSM_Translator")) / "videos" / "isolated"
 VIZ_DIR = Path("data/viz")
 VIZ_DIR.mkdir(parents=True, exist_ok=True)
 

@@ -1,9 +1,10 @@
 import json
 import statistics
+import os
 from pathlib import Path
 from collections import defaultdict
 
-VIDEOS_DIR = Path("/Volumes/Crucial X8/LSM_Translator/videos/isolated")
+VIDEOS_DIR = Path(os.environ.get("LSM_DATA_ROOT", "/Volumes/Crucial X8/LSM_Translator")) / "videos" / "isolated"
 DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
 

@@ -4,11 +4,12 @@ import re
 import sqlite3
 import csv
 import unicodedata
+import os
 from pathlib import Path
 from datetime import date
 import numpy as np
 
-VIDEOS_DIR = Path("/Volumes/Crucial X8/LSM_Translator/videos/isolated")
+VIDEOS_DIR = Path(os.environ.get("LSM_DATA_ROOT", "/Volumes/Crucial X8/LSM_Translator")) / "videos" / "isolated"
 DATA_DIR = Path("data")
 ARRAYS_DIR = DATA_DIR / "arrays"
 DB_PATH = DATA_DIR / "lsm.db"

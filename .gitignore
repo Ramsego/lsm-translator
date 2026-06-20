@@ -5,6 +5,12 @@ data/
 # Google MediaPipe model files (download via README; not ours to redistribute)
 scripts/*.task
 
+# Reference papers / PDFs (not ours to redistribute)
+*.pdf
+
+# Extraction scratch (regenerable; the per-segment .npz are the deliverable)
+*_full.npy
+
 # Python
 __pycache__/
 *.pyc

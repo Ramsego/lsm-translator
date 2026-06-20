@@ -6,9 +6,10 @@ already there are preserved. Resumable: skips folders that already have an .mp4.
 """
 import sqlite3
 import subprocess
+import os
 from pathlib import Path
 
-VIDEOS_DIR = Path("/Volumes/Crucial X8/LSM_Translator/videos/isolated")
+VIDEOS_DIR = Path(os.environ.get("LSM_DATA_ROOT", "/Volumes/Crucial X8/LSM_Translator")) / "videos" / "isolated"
 DB_PATH = Path("data/lsm.db")
 
 def main():

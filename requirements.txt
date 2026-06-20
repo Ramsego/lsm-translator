@@ -1,4 +1,16 @@
-yt-dlp
+# Core
+numpy
 opencv-python-headless
-mediapipe
+mediapipe          # hand/pose/face landmark extraction (Tasks API)
+yt-dlp             # download conference videos + captions
+
+# Phase 2 — alignment & weak labeling
+faster-whisper     # CPU ASR for word-level timestamps
+spacy              # Spanish lemmatization (also: python -m spacy download es_core_news_sm)
+playwright         # fetch gob.mx estenográficas (also: playwright install chromium)
+
+# Spotter / DTW baseline
 dtaidistance
+
+# Phase 3 — training
+torch

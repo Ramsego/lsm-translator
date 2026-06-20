@@ -7,8 +7,9 @@
 # With no args, uses the default set below.
 set -e
 
-VIDEOS_BASE="/Volumes/Crucial X8/LSM_Translator/videos/mananera"
-ARRAYS_BASE="/Volumes/Crucial X8/LSM_Translator/arrays/mananera"
+DATA_ROOT="${LSM_DATA_ROOT:-/Volumes/Crucial X8/LSM_Translator}"
+VIDEOS_BASE="$DATA_ROOT/videos/mananera"
+ARRAYS_BASE="$DATA_ROOT/arrays/mananera"
 if [ "$#" -gt 0 ]; then
     IDS=("$@")
 else

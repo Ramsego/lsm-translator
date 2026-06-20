@@ -1,8 +1,9 @@
 import sys
 import subprocess
+import os
 from pathlib import Path
 
-VIDEOS_DIR = Path("/Volumes/Crucial X8/LSM_Translator/videos/isolated")
+VIDEOS_DIR = Path(os.environ.get("LSM_DATA_ROOT", "/Volumes/Crucial X8/LSM_Translator")) / "videos" / "isolated"
 
 
 def scrape_channel(channel_url: str) -> None:

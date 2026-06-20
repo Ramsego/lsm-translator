@@ -16,12 +16,13 @@ import json
 import sys
 import cv2
 import numpy as np
+import os
 from pathlib import Path
 
 # A video may live in either source folder; search both.
 VIDEO_DIRS = [
-    Path("/Volumes/Crucial X8/LSM_Translator/videos/isolated"),
-    Path("/Volumes/Crucial X8/LSM_Translator/videos/wikisigns"),
+    Path(os.environ.get("LSM_DATA_ROOT", "/Volumes/Crucial X8/LSM_Translator")) / "videos" / "isolated",
+    Path(os.environ.get("LSM_DATA_ROOT", "/Volumes/Crucial X8/LSM_Translator")) / "videos" / "wikisigns",
 ]
 OUT_DIR = Path("data/viz/verify")
 

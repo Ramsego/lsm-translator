@@ -63,6 +63,17 @@ def crop_at(crop_changes, t):
     return active
 
 
+def get_context(aligned, idx, window=8):
+    """±window words around idx with the target wrapped in **...**."""
+    start = max(0, idx - window)
+    end = min(len(aligned), idx + window + 1)
+    parts = []
+    for i in range(start, end):
+        w = aligned[i]["word"].strip()
+        parts.append(f"**{w}**" if i == idx else w)
+    return " ".join(parts)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--video", type=Path, required=True)
@@ -82,6 +93,9 @@ def main():
     crop_changes = meta["crop_changes"]
     lag = json.load(open(args.arrays / "lag_estimate.json")).get("lag_sec", 6.0)
     aligned = json.load(open(args.aligned))["words"]
+
+    # pre-build index: object id → position in aligned list (for context lookup)
+    word_index = {id(w): i for i, w in enumerate(aligned)}
 
     targets = {norm(w) for w in args.words} if args.words else None
 
@@ -118,13 +132,15 @@ def main():
                    "-filter:v", f"crop={cw2}:{ch2}:{cx}:{cy},scale=2*iw:2*ih",
                    "-an", "-loglevel", "error", str(out)]
             subprocess.run(cmd, check=False)
+            idx = word_index[id(w)]
+            ctx = get_context(aligned, idx)
             rows.append({"file": str(out.relative_to(args.out)), "word": k,
-                         "video_start": round(t0, 1), "verdict": ""})
+                         "video_start": round(t0, 1), "context": ctx, "verdict": ""})
         print(f"  {k}: {min(len(ws), args.max_per_word)} clips")
 
     csv_path = args.out / "review.csv"
     with open(csv_path, "w", newline="") as f:
-        wr = csv.DictWriter(f, fieldnames=["file", "word", "video_start", "verdict"])
+        wr = csv.DictWriter(f, fieldnames=["file", "word", "video_start", "context", "verdict"])
         wr.writeheader(); wr.writerows(rows)
 
     print(f"\n{len(rows)} clips → {args.out}")

@@ -1,10 +1,14 @@
 """
 Collect human-verified review.csv verdicts into the central gold-label set.
 
-review.csv (from make_review_clips.py) has columns: file, word, video_start, verdict.
-The reviewer fills 'verdict' with y/n. This keeps the y's, attaches video + signer +
-the clip window, and merges them into gold_labels.json (the GOLD tier — clean,
-human-verified seeds + the leave-one-signer-out eval set).
+review.csv (from make_review_clips.py) has columns:
+  file, word, video_start, verdict, signer, sign_start, sign_end
+
+Verdict routing:
+  y / yes / 1 / si → gold_labels under the word key (training data)
+  neg              → gold_labels under "{word}:neg" (negated form = distinct sign class)
+  n / no           → implicit_signs (sign not present; linguistically noted, not trained on)
+  '' / skip        → ignored
 
 Usage:
     python phase2/collect_gold.py --review <review.csv> --video-id 2XU5NTX4Xfs \\
@@ -30,40 +34,64 @@ def main():
     args = ap.parse_args()
 
     # load existing gold (merge across batches/signers); de-dup by (video,word,start)
-    gold = []
+    existing = {"labels": [], "implicit_signs": []}
     if args.gold.exists():
-        gold = json.load(open(args.gold)).get("labels", [])
-    seen = {(g["video_id"], g["word"], g["start_sec"]) for g in gold}
+        existing = json.load(open(args.gold))
+        if "implicit_signs" not in existing:
+            existing["implicit_signs"] = []
 
-    added = kept = 0
-    per_word = {}
+    gold = existing["labels"]
+    implicit = existing["implicit_signs"]
+
+    seen_gold = {(g["video_id"], g["word"], g["start_sec"]) for g in gold}
+    seen_implicit = {(g["video_id"], g["word"], g["start_sec"]) for g in implicit}
+
+    added_gold = added_implicit = kept = 0
+    per_word: dict = {}
+
     with open(args.review) as f:
         for row in csv.DictReader(f):
             kept += 1
             v = row.get("verdict", "").strip().lower()
-            if v not in ("y", "yes", "1", "si", "sí"):
+            if not v:
                 continue
+
             clip_start = float(row["video_start"])
-            # prefer the human-marked sign window; else fall back to the generous clip span
-            ss, se = row.get("sign_start", "").strip(), row.get("sign_end", "").strip()
-            if ss and se:
-                start, end, localized = float(ss), float(se), True
-            else:
-                start, end, localized = clip_start, clip_start + 2 * args.win, False
-            key = (args.video_id, row["word"], round(clip_start, 1))
-            if key in seen:
-                continue
-            seen.add(key)
-            # per-clip signer (rotating interpreters within a video); namespaced by video
+            ss = row.get("sign_start", "").strip()
+            se = row.get("sign_end", "").strip()
             sig = (row.get("signer", "").strip() or args.signer or "1")
             signer_id = f"{args.video_id}:{sig}"
-            gold.append({
-                "word": row["word"], "video_id": args.video_id, "signer": signer_id,
-                "start_sec": round(start, 1), "end_sec": round(end, 1),
-                "localized": localized, "tier": "gold", "source": "human",
-            })
-            added += 1
-            per_word[row["word"]] = per_word.get(row["word"], 0) + 1
+
+            if v in ("y", "yes", "1", "si", "sí", "neg"):
+                # gold: confirmed sign (y) or negated form (neg → word:neg class)
+                word_key = row["word"] if v != "neg" else f"{row['word']}:neg"
+                if ss and se:
+                    start, end, localized = float(ss), float(se), True
+                else:
+                    start, end, localized = clip_start, clip_start + 2 * args.win, False
+                key = (args.video_id, word_key, round(clip_start, 1))
+                if key in seen_gold:
+                    continue
+                seen_gold.add(key)
+                gold.append({
+                    "word": word_key, "video_id": args.video_id, "signer": signer_id,
+                    "start_sec": round(start, 1), "end_sec": round(end, 1),
+                    "localized": localized, "tier": "gold", "source": "human",
+                })
+                added_gold += 1
+                per_word[word_key] = per_word.get(word_key, 0) + 1
+
+            elif v in ("n", "no"):
+                # implicit: sign was not present; signer conveyed meaning another way
+                key = (args.video_id, row["word"], round(clip_start, 1))
+                if key in seen_implicit:
+                    continue
+                seen_implicit.add(key)
+                implicit.append({
+                    "word": row["word"], "video_id": args.video_id, "signer": signer_id,
+                    "start_sec": round(clip_start, 1),
+                })
+                added_implicit += 1
 
     args.gold.parent.mkdir(parents=True, exist_ok=True)
     signers = sorted({g["signer"] for g in gold})
@@ -71,11 +99,14 @@ def main():
     args.gold.write_text(json.dumps({
         "n_labels": len(gold), "signers": signers, "n_words": len(words),
         "labels": gold,
+        "implicit_signs": implicit,
     }, ensure_ascii=False, indent=2))
 
-    print(f"Reviewed rows: {kept}   added this pass: {added}")
-    print(f"This pass by word: {per_word}")
+    print(f"Reviewed rows: {kept}   gold added: {added_gold}   implicit added: {added_implicit}")
+    if per_word:
+        print(f"This pass by word: {per_word}")
     print(f"\nGOLD now: {len(gold)} labels, {len(words)} words, signers={signers}")
+    print(f"Implicit signs: {len(implicit)} total")
     print(f"Saved → {args.gold}")
 
 

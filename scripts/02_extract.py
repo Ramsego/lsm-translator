@@ -5,12 +5,13 @@ import cv2
 import mediapipe as mp
 from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision
+import os
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from handedness import motion_dominant
 
-VIDEOS_DIR = Path("/Volumes/Crucial X8/LSM_Translator/videos/isolated")
+VIDEOS_DIR = Path(os.environ.get("LSM_DATA_ROOT", "/Volumes/Crucial X8/LSM_Translator")) / "videos" / "isolated"
 HAND_MODEL = Path("scripts/hand_landmarker.task")
 POSE_MODEL = Path("scripts/pose_landmarker.task")
 FACE_MODEL = Path("scripts/face_landmarker.task")

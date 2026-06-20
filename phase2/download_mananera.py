@@ -11,9 +11,10 @@ Usage:
 
 import argparse
 import subprocess
+import os
 from pathlib import Path
 
-OUT_BASE = Path("/Volumes/Crucial X8/LSM_Translator/videos/mananera")
+OUT_BASE = Path(os.environ.get("LSM_DATA_ROOT", "/Volumes/Crucial X8/LSM_Translator")) / "videos" / "mananera"
 
 
 def download(video_id: str, height: int, start: str = None, end: str = None):

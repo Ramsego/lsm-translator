@@ -65,6 +65,16 @@ sign languages, but not, as far as we found, for LSM.
 
 ```bash
 pip install -r requirements.txt
+python -m spacy download es_core_news_sm   # Spanish lemmatization (Phase 2)
+playwright install chromium                  # transcript fetcher (Phase 2)
+```
+
+Data location: videos and landmark arrays live outside the repo (they're large and
+git-ignored). Point the pipeline at wherever you keep them via an environment variable
+(defaults to the maintainer's drive if unset):
+
+```bash
+export LSM_DATA_ROOT="/path/to/LSM_Translator"   # contains videos/ and arrays/
 ```
 
 Download the MediaPipe model files (not redistributed here — © Google, Apache-2.0):
