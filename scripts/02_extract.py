@@ -26,13 +26,17 @@ FACE_LANDMARKS = [
     33, 133, 159, 145, 160, 144, 362, 263, 386, 374, 387, 373,
     # iris / gaze (2)
     468, 473,
-    # mouth shape (12)
-    61, 291, 0, 17, 13, 14, 78, 308, 82, 312, 87, 317,
+    # mouth — dense (20): interpreters mouth Spanish words continuously, a strong
+    # disambiguation cue, so we sample both lip rings for viseme-level detail.
+    # outer lip ring (10)
+    61, 291, 0, 17, 37, 267, 84, 314, 40, 270,
+    # inner lip ring (10)
+    78, 308, 13, 14, 82, 312, 87, 317, 81, 311,
     # head-orientation anchors (5)
     10, 152, 234, 454, 1,
 ]
 
-def make_detectors():
+def make_detectors(face_min_detection_confidence: float = 0.5):
     hand_opts = vision.HandLandmarkerOptions(
         base_options=mp_python.BaseOptions(model_asset_path=str(HAND_MODEL)),
         num_hands=2,
@@ -45,6 +49,7 @@ def make_detectors():
     face_opts = vision.FaceLandmarkerOptions(
         base_options=mp_python.BaseOptions(model_asset_path=str(FACE_MODEL)),
         running_mode=vision.RunningMode.VIDEO,
+        min_face_detection_confidence=face_min_detection_confidence,
     )
     return (
         vision.HandLandmarker.create_from_options(hand_opts),

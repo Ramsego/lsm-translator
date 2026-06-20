@@ -29,9 +29,12 @@ def main():
     ap.add_argument("--crop", type=int, nargs=4, metavar=("X", "Y", "W", "H"), required=True)
     ap.add_argument("--scale", type=float, default=2.0, help="Upscale factor for the crop.")
     ap.add_argument("--seconds", type=float, default=120, help="How many seconds to process.")
+    ap.add_argument("--face-confidence", type=float, default=0.5,
+                    help="min_face_detection_confidence for FaceLandmarker (default 0.5).")
     args = ap.parse_args()
 
-    hand_det, pose_det, face_det = extract02.make_detectors()
+    hand_det, pose_det, face_det = extract02.make_detectors(
+        face_min_detection_confidence=args.face_confidence)
     x, y, w, h = args.crop
 
     cap = cv2.VideoCapture(str(args.video))
