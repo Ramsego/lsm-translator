@@ -1,0 +1,22 @@
+{
+  "video": "cjpPmeg-Doo",
+  "n_matches": 79,
+  "n_onsets": 205,
+  "median_lag_s": 5.26,
+  "spread_s": 2.66,
+  "rho_lag_time": 0.0845,
+  "rho_lag_density": 0.1175,
+  "window_events": 20,
+  "decile_medians": [
+    7.14,
+    2.665,
+    4.21,
+    4.24,
+    5.82,
+    5.235,
+    4.955,
+    9.455,
+    6.205,
+    6.33
+  ]
+}

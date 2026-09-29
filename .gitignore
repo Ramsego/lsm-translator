@@ -11,9 +11,35 @@ scripts/*.task
 # Extraction scratch (regenerable; the per-segment .npz are the deliverable)
 *_full.npy
 
+# Local video manifest (kept local for now, not yet tracked)
+videos_manifest.csv
+
+# QC gate output (regenerable via `python qc/run_gates.py`; see DATA_QUALITY.md)
+qc/out/
+
 # Python
 __pycache__/
 *.pyc
 
 # macOS
 .DS_Store
+
+# Phase 3 local data, mirrors, and vendored third-party repos (cite, don't redistribute)
+phase3/local_drive_mirror/
+phase3/sea_src/
+phase3/probe/signclip_src/
+phase3/sea_test/video/
+
+# Media, pose and array data anywhere in the tree
+*.mp4
+*.pose
+*.npz
+*.npy
+*.zip
+*.bak
+
+# Run logs and local-only notes
+*.log
+nohup.out
+INTERVIEW_PREP.*
+make_interview_pdf.py

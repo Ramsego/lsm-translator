@@ -1,0 +1,22 @@
+{
+  "video": "oExqlI7iZU4",
+  "n_matches": 134,
+  "n_onsets": 237,
+  "median_lag_s": 6.44,
+  "spread_s": 3.501,
+  "rho_lag_time": 0.2109,
+  "rho_lag_density": -0.081,
+  "window_events": 20,
+  "decile_medians": [
+    7.24,
+    4.17,
+    4.15,
+    3.73,
+    5.085,
+    8.26,
+    5.93,
+    10.225,
+    7.85,
+    6.63
+  ]
+}

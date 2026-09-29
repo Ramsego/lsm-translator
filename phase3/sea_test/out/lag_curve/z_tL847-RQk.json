@@ -1,0 +1,22 @@
+{
+  "video": "z_tL847-RQk",
+  "n_matches": 140,
+  "n_onsets": 273,
+  "median_lag_s": 4.885,
+  "spread_s": 3.379,
+  "rho_lag_time": -0.0679,
+  "rho_lag_density": -0.1679,
+  "window_events": 20,
+  "decile_medians": [
+    7.635,
+    4.99,
+    3.41,
+    4.225,
+    5.925,
+    3.805,
+    5.135,
+    5.685,
+    4.82,
+    4.965
+  ]
+}

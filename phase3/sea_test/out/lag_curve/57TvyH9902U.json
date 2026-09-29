@@ -1,0 +1,22 @@
+{
+  "video": "57TvyH9902U",
+  "n_matches": 419,
+  "n_onsets": 352,
+  "median_lag_s": 5.62,
+  "spread_s": 3.458,
+  "rho_lag_time": -0.0072,
+  "rho_lag_density": -0.1132,
+  "window_events": 20,
+  "decile_medians": [
+    5.22,
+    5.065,
+    6.685,
+    5.685,
+    5.545,
+    6.785,
+    4.115,
+    5.39,
+    5.705,
+    5.08
+  ]
+}

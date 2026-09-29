@@ -1,0 +1,22 @@
+{
+  "video": "wXHZn-8b28M",
+  "n_matches": 256,
+  "n_onsets": 330,
+  "median_lag_s": 5.91,
+  "spread_s": 3.324,
+  "rho_lag_time": -0.0067,
+  "rho_lag_density": -0.0963,
+  "window_events": 20,
+  "decile_medians": [
+    4.31,
+    7.475,
+    8.08,
+    5.195,
+    6.36,
+    6.08,
+    4.665,
+    4.22,
+    7.26,
+    6.835
+  ]
+}

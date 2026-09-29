@@ -1,13 +1,28 @@
+# Requires Python 3.11. Verified 2026-08-14: every dependency below resolves and
+# installs together cleanly under 3.11 with mediapipe==0.10.21 (both the Tasks API
+# used by Phase 1/2 extraction AND legacy mediapipe.solutions.holistic used by
+# pose-format for SEA/SignCLIP .pose files -- Holistic was removed in
+# mediapipe>=0.10.30, and mediapipe has no <0.10.30 wheel for Python 3.13, which is
+# why this floor is 3.11 and not whatever your system Python happens to be).
+# One environment for the whole pipeline; no separate env needed for Phase 3.
+
 # Core
 numpy
 opencv-python-headless
-mediapipe          # hand/pose/face landmark extraction (Tasks API)
+mediapipe==0.10.21 # hand/pose/face landmark extraction (Tasks API) AND legacy
+                    # solutions.Holistic (pose-format, SEA/SignCLIP .pose files).
+                    # Pinned, not floored: Holistic was removed in mediapipe>=0.10.30.
+                    # Do not bump without re-verifying Holistic still imports.
 yt-dlp             # download conference videos + captions
 
 # Phase 2 — alignment & weak labeling
 faster-whisper     # CPU ASR for word-level timestamps
 spacy              # Spanish lemmatization (also: python -m spacy download es_core_news_sm)
 playwright         # fetch gob.mx estenográficas (also: playwright install chromium)
+
+# Phase 3 — sentence alignment (SEA) & word-localization probes (SignCLIP)
+pose-format==0.14.1 # .pose file extraction (videos_to_poses); requires the pinned
+                     # mediapipe above for its Holistic backend
 
 # Spotter / DTW baseline
 dtaidistance

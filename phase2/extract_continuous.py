@@ -2,10 +2,16 @@
 Extract continuous landmark arrays from a mañanera video.
 
 Auto-detects the interpreter recuadro by scanning the first 60s on the FULL frame
-and anchoring the crop on POSE (body envelope), padded generously so wide signs are
-not clipped. The per-frame hand detector acts as the presence gate; pose+face run
-only when hands are present. On a sustained absence (interpreter gone / box moved)
-it re-detects, constrained to frame corners and requiring hands AND pose, so the
+and anchoring the crop on HAND points (a pose skeleton fit to a small region crop
+can sprawl onto the background and blow the box up), padded generously so wide
+signs are not clipped. The per-frame presence gate requires POSE AND HAND, not
+hand alone: Pose runs first every frame (cheap); Hand only runs to confirm when
+Pose already found something. Requiring both was measured to cut the
+false-positive rate to 1.7% (vs. 5.5% hand-only / 42.7% pose-only) at no recall
+cost vs. hand-only -- neither signal alone is trustworthy (Hand fires on
+inanimate hand-shaped objects; Pose fires on any person's torso, not just the
+interpreter's). On a sustained absence (interpreter gone / box moved) it
+re-detects, constrained to frame corners and requiring hands AND pose, so the
 main speaker is never mistaken for the interpreter.
 
 Saves one .npy per active signing segment (124-landmark schema) + segments.json.
@@ -211,6 +217,21 @@ def frame_to_row(hand_result, pose_result, face_result) -> np.ndarray:
     return row
 
 
+def frame_presence_decision(patch_empty: bool, hand_and_pose_present: bool):
+    """Decide the presence outcome for one processed frame.
+
+    An empty crop patch (patch.size == 0, seen transiently right after a crop
+    relocation) must NEVER be silently skipped -- every processed frame needs
+    a slot in the timeline or start_sec = start_frame/proc_fps drifts for
+    every later frame. So an empty patch is treated the same as "no hand/pose
+    detected": present=False, and the caller still writes a NaN row and
+    advances `processed` normally. Returns (present, is_empty_patch).
+    """
+    if patch_empty:
+        return False, True
+    return bool(hand_and_pose_present), False
+
+
 # ── segmentation ──────────────────────────────────────────────────────────────
 
 def segments_from_presence(presence, gap_threshold, min_frames):
@@ -277,7 +298,16 @@ def main():
     hand_det, pose_det, face_det = make_detectors()
     det_hand, det_pose = make_image_detectors()   # IMAGE-mode, for crop detection
     cap = cv2.VideoCapture(str(args.video))
-    fps = cap.get(cv2.CAP_PROP_FPS) or 30
+    container_fps = cap.get(cv2.CAP_PROP_FPS)
+    if container_fps:
+        fps = container_fps
+        fps_source = "container"
+    else:
+        fps = 30
+        fps_source = "fallback_30"
+        print("WARNING: could not read FPS from video container; "
+              "falling back to 30fps. Timestamps will be WRONG if the real "
+              "fps differs -- verify with ffprobe before trusting this run's segments.json.")
     total_frames = int(args.seconds * fps) if args.seconds else int(1e9)
 
     # absence is measured in PROCESSED frames; convert thresholds to that unit
@@ -322,6 +352,7 @@ def main():
     processed = 0
     absence   = 0
     debug_saved = 0
+    empty_patch_frames = 0   # crop patch.size==0 (transient, e.g. right after relocation)
 
     while cap.isOpened() and fi < total_frames and processed < n_alloc:
         ok, frame = cap.read()
@@ -334,19 +365,39 @@ def main():
         ts = int(fi * 1000 / fps)
         x, y, w, h = active_crop
         patch = frame[y:y+h, x:x+w]
-        if patch.size == 0:
-            fi += 1
-            continue
-        if args.scale != 1.0:
-            patch = cv2.resize(patch, None, fx=args.scale, fy=args.scale,
-                               interpolation=cv2.INTER_CUBIC)
+        patch_empty = patch.size == 0
 
-        rgb = cv2.cvtColor(patch, cv2.COLOR_BGR2RGB)
-        img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-        hr  = hand_det.detect_for_video(img, ts)
+        hr = pr = None
+        if not patch_empty:
+            if args.scale != 1.0:
+                patch = cv2.resize(patch, None, fx=args.scale, fy=args.scale,
+                                   interpolation=cv2.INTER_CUBIC)
 
-        if hr.hand_landmarks:
+            rgb = cv2.cvtColor(patch, cv2.COLOR_BGR2RGB)
+            img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+
+            # Presence gate: Pose AND Hand, not Hand alone. Pose runs first every frame
+            # (cheap, ~10ms) since it's the cheaper detector; Hand only runs to confirm
+            # when Pose already found something (~24ms, skipped otherwise -- cheaper on
+            # average than the old hand-only gate, not more expensive). Requiring BOTH
+            # beats either alone: measured 1.7% false-positive rate on 344 probes across
+            # 11 videos (vs. 5.5% hand-only / 42.7% pose-only), at the same recall as
+            # hand-only (92.7%). Neither signal is trustworthy by itself: Hand fires on
+            # inanimate hand-shaped objects (a trouser leg, a violin neck); Pose fires on
+            # any person's torso in frame, not just the interpreter's (e.g. a child
+            # visible during a B-roll cutaway). This replaces the separate
+            # revalidate_segments.py pass for newly-extracted video -- that script is
+            # still correct for reproducing/understanding the existing
+            # segments_revalidated.json files built from the old hand-only gate.
             pr = pose_det.detect_for_video(img, ts)
+            hr = hand_det.detect_for_video(img, ts) if pr.pose_landmarks else None
+
+        present, was_empty_patch = frame_presence_decision(
+            patch_empty, bool(hr and hr.hand_landmarks))
+        if was_empty_patch:
+            empty_patch_frames += 1
+
+        if present:
             fr = face_det.detect_for_video(img, ts)
             arr[processed] = frame_to_row(hr, pr, fr)
             presence[processed] = True
@@ -395,6 +446,9 @@ def main():
     presence = presence[:processed]
     print(f"\nTotal processed: {processed} frames ({processed/proc_fps:.1f}s effective at {fps:.0f}fps)")
     print(f"  hand/interpreter present: {100*presence.mean():.1f}%")
+    if empty_patch_frames:
+        print(f"  WARNING: {empty_patch_frames} frame(s) had an empty crop patch "
+              f"(recorded as NaN, timeline preserved)")
 
     segs = segments_from_presence(presence, args.gap, args.min_frames)
     print(f"Active signing segments: {len(segs)}")
@@ -423,6 +477,8 @@ def main():
             "schema_rows": N_ROWS,
             "crop_changes": crop_changes,
             "scale": args.scale, "every": args.every, "fps": fps,
+            "fps_source": fps_source,
+            "skipped_patch_frames": empty_patch_frames,
             "segments": seg_meta,
         }, f, indent=2)
 
@@ -437,6 +493,13 @@ def main():
     print(f"Metadata → {meta_path}")
     if args.debug and debug_saved:
         print(f"Debug frames → {debug_dir}")
+
+    # self-maintaining manifest: record this video so it's never re-extracted (best-effort)
+    try:
+        from manifest import update_for_extraction
+        update_for_extraction(args.video, args.out)
+    except Exception as e:
+        print(f"(manifest update skipped: {e})")
 
 
 if __name__ == "__main__":

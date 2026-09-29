@@ -1,16 +1,29 @@
-# LSM → Spanish Translator — Project Overview
+# LSM Interpreter Corpus — Project Overview
 
-*A scalable pipeline for continuous Mexican Sign Language (Lengua de Señas Mexicana)
-recognition from government broadcast video.*
+*A scalable pipeline for mining continuous Mexican Sign Language (Lengua de Señas Mexicana)
+from government broadcast video.*
 
-Last updated: 2026-06-22
+Last updated: 2026-08-13 (title and §1 now defer to the CANON block; §9 added 2026-08-01;
+§7 kept for history but superseded by §9)
+
+> **`PIPELINE_MAP.md` holds the CANON block — the single authoritative statement of what
+> this project is. Read it first, and quote it rather than this document when describing
+> the project.** This document holds the fuller background, data-source rationale, schema,
+> and model sketch. Where the two disagree, CANON wins.
+>
+> *(The old title of this file was "LSM → Spanish Translator", which contradicted its own
+> §1. The translator is the north star, not the deliverable.)*
 
 ---
 
 ## 1. Goal
 
-Build a working **translator MVP**: given a press-conference clip from an *unseen*
-interpreter, output approximate Spanish sentences.
+**See the CANON block in `PIPELINE_MAP.md`. It is authoritative; this section only
+elaborates on the north star and does not restate the deliverable.**
+
+The north star — what motivates the design, and explicitly *not* the next milestone — is a
+working **translator MVP**: given a press-conference clip from an *unseen* interpreter,
+output approximate Spanish sentences.
 
 ```
 Signing input → CTC → "gobierno medidas salud personas semana"
@@ -20,7 +33,7 @@ Signing input → CTC → "gobierno medidas salud personas semana"
 Approximate, not literary. Gaps where signs fall outside the vocabulary. The target is a
 followable gist on cross-signer data — **not** an isolated 50-word bank.
 
-**Scope:**
+**Scope — of the north star, not of the current deliverable:**
 - Vocabulary: 150–200 content words
 - Signers: 8–12 distinct interpreters
 - Model: CTC sequence output + mT5/mBART Spanish decoder (gloss-free)
@@ -280,14 +293,38 @@ cost is CPU extraction time and human review hours).
   visible mouthing).
 - `phase3/dataset.py` built + self-tested (time→frame mapping, normalization, padded
   batches, leave-one-signer-out splits).
+- **MediaPipe skeleton quality confirmed on corner-box footage** (Sinaloa Gobierno del Estado
+  press conferences): finger-level tracking is clean on upscaled PiP, hand detection 90.7%.
+  This is the format planned for held-out test videos.
+- **Cross-signer DTW baseline confirmed at ~1%** on the Phase-1 word bank. Root cause: 963
+  clips, 886 unique labels, 819 with only a single example — the model never sees the same
+  sign from two different people. Direct template matching cannot generalize. This closes the
+  DTW path and confirms the training approach is necessary, not optional.
 
-**In progress:**
-- Extracting ~50h of video (overnight CPU runs — the throughput bottleneck).
-- Human annotation of review clips → gold labels.
+**Revised near-term plan (anchor-first):**
+The original "mine continuous footage → train CTC" sequence has been reordered. Direct
+cross-signer matching failed, so we first need a trained recognizer before mining is useful.
+The anchor set is the gate:
+
+1. **100-word anchor set** — 100 high-frequency signs × ≥50 examples × 6–8 signers, pulled
+   from the continuous footage using the audio as a candidate-window generator, confirmed
+   by eye. This is the first real training data (not a reference dictionary).
+2. **Cross-signer recognizer** — trained on the anchor set, evaluated on held-out Sinaloa
+   signers (leave-one-source-out). This is the viability milestone.
+3. **Bootstrap mining** — the trained recognizer (not the broken DTW matcher) becomes the
+   auto-confirmation step for mining more examples from the 20h corpus.
+
+**Continuous footage assembled so far:**
+- 14 videos, ~20h signing time (15h confirmed + 2 in download), across 8 identified training
+  signers: 2 AMLO-era mañanera, 2 Sheinbaum-era, 2 COVID health briefings, 2 Sonora.
+- **Held out (never to be trained on):** 2 Sinaloa Gobierno del Estado signers — a
+  geographically and institutionally distinct source, stronger test than same-pool held-out.
 
 **Not started:**
-- `phase3/model.py`, `train.py`, `evaluate.py` (deliberately deferred until the architecture
-  is locked and real gold exists).
+- Word frequency analysis across transcripts → 100-word selection
+- Anchor set clip collection (semi-manual, audio-guided)
+- `phase3/model.py`, `train.py`, `evaluate.py` (deliberately deferred until the anchor
+  recognizer is built and real gold exists)
 
 ---
 
@@ -300,12 +337,59 @@ cost is CPU extraction time and human review hours).
    RECURSOS). We plan to group synonyms to one concept label and rely on the decoder to pick
    the surface word. Is gloss-free SLT genuinely the right end goal here, or should we keep an
    explicit gloss layer?
-3. **Cross-signer ceiling.** The mañanera interpreter pool is small (~4–8 federal). Does the
-   MORENA-states expansion realistically deliver enough signer diversity to claim
-   generalization, or is the honest claim always "this pool"?
+3. **Cross-signer ceiling.** DTW on the Phase-1 word bank gave ~1% cross-signer accuracy —
+   confirmed the template-matching baseline is too weak to use as a mining filter. The planned
+   recognizer (trained on 100-word anchor set, 50 examples × 6–8 signers) should clear this.
+   Honest generalization claim will be "interpreters in this pool" until more state-conference
+   data is added. Initial test: held-out Sinaloa signers (different state, different institution).
 4. **Pre-training.** Worth the effort to pre-train (SHuBERT-style) on the 490-sign Phase-1
    isolated set + Mendeley (249 signs, 11 signers) before fine-tuning on continuous data, or
    diminishing returns at this scale?
 5. **Weak-label cleanliness.** Is ~94% transcript-alignment + a 6–7s lag window clean enough
    to train CTC, or will the noise floor dominate before vocabulary coverage does?
 ```
+
+---
+
+## 9. Status update (2026-08-01) — supersedes §7 where they conflict
+
+**Corpus.** 16 videos, ~21.1h raw interpreter footage, all extracted to the 124-landmark
+schema (face landmarks present 88–99.8% — an earlier "mostly NaN" claim was stale).
+Signer-presence regated on **pose, not hands** after a B-roll bug (hands anywhere in the
+inset opened spurious windows): 20.79h validated signing across 236 segments. ASR
+transcripts: 16/16. Full-corpus arrays live on the external drive (mirror of the test
+slice is local at `phase3/local_drive_mirror/`).
+
+**The anchor-first plan in §7 is superseded.** The current sequence (see
+`PIPELINE_MAP.md` and `phase3/NEXT_STEPS_SPEC.md`):
+
+1. **Stage-1 sentence alignment** (SEA segmenter + DP + lag model): best config Run B =
+   73.1% binary / 3.46s median error on the 26-clip verified instrument. Next: D1
+   per-block lag; grow the verified eval set to 60–80.
+2. **Stage-2 word localization** inside aligned spans: LSM ordering prior (Workstream E,
+   gloss corpus measured: 42% of pairs reorder, time-marker fronting 87%), mouthing
+   (Workstream C: presence 16/16; **shape-DTW clip-to-clip discrimination confirmed
+   above chance p≈0.0006 in the 2026-08-01 audit** — AV-HuBERT retest now aims to beat
+   that baseline, not merely beat chance), and eventually a visual scorer.
+3. **First training event: fine-tune SignCLIP on our own mined pairs.** Measured
+   2026-07-31: off-the-shelf SignCLIP is unusable as a scorer on interpreter footage
+   (flat at chance; domain gap vs dictionary clips p=0.038) though it retains weak
+   signal on citation-form clips — and LSM is very likely in its Spreadthesign
+   pretraining (es.mx edition exists), so this is a register/domain gap, not language
+   novelty. Fine-tuning is a prerequisite, not an option.
+4. **Candidate generation is open-vocabulary** (settled 2026-08-01): the LLM proposes
+   candidate signs freely, ranked; the 886 inventory is the *verification seed and eval
+   anchor*, not a ceiling. Precedents: BOBSL dense annotation (arXiv 2208.02802,
+   synonym expansion + novel-class pseudo-labeling), SignAgent (arXiv 2603.19059),
+   pseudo-gloss LLM generation. Contrastive training can acquire out-of-inventory signs
+   from recurrence once the encoder is fine-tuned in-domain — open the vocabulary
+   *after* the encoder works, not before.
+
+**Paths closed by measurement** (do not reopen without new evidence): cross-signer DTW
+template matching (~1%); duration rescale / grammar-duration prior (ratio 0.966, no
+headroom); aperture-only, order-position, and viseme-table mouthing word-ID; padding as
+the explanation for SignCLIP's weak control; off-the-shelf SignCLIP as ranking stage.
+
+**End products, in order:** (1) the corpus + alignment pipeline + baselines paper;
+(2) fine-tuned in-domain sign encoder enabling scaled mining; (3) the translator MVP
+(§6 architecture) trained on the mined corpus.

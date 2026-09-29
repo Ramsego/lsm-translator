@@ -1,0 +1,387 @@
+{
+  "_comment": [
+    "Candidate target words for review-clip generation, as explicit surface-form families.",
+    "WHY explicit forms and not a stemmer: the 2026-07-31 audit found the shared-stem prefix",
+    "heuristic had BOTH live false negatives (stem-changing verbs: encontrar -> encuentra) and",
+    "a false-positive class it introduced itself (director -> directamente). An exhaustive",
+    "per-word form list has neither. Same mechanism as FORMS in check_alignment_v2.py.",
+    "",
+    "'sense' documents the reading we are targeting. 'block' lists collocations where the word",
+    "appears in a DIFFERENT sense and the occurrence must be skipped -- this is the 'mesa'",
+    "failure mode (mesa de trabajo is a committee, not a table) generalized.",
+    "",
+    "Selection rationale is in phase2/WORD_SELECTION.md. Reviewer verdicts, not this file,",
+    "are ground truth: a wrong guess here costs review time, never a wrong label."
+  ],
+  "salud": {
+    "forms": [
+      "salud"
+    ],
+    "sense": "health"
+  },
+  "trabajo": {
+    "forms": [
+      "trabajo",
+      "trabajos"
+    ],
+    "sense": "work (noun)",
+    "block": [
+      "mesa de trabajo",
+      "mesas de trabajo",
+      "grupo de trabajo",
+      "grupos de trabajo",
+      "trabajo de campo"
+    ]
+  },
+  "pais": {
+    "forms": [
+      "pais",
+      "paises"
+    ],
+    "sense": "country"
+  },
+  "hospital": {
+    "forms": [
+      "hospital",
+      "hospitales"
+    ],
+    "sense": "hospital"
+  },
+  "agua": {
+    "forms": [
+      "agua",
+      "aguas"
+    ],
+    "sense": "water"
+  },
+  "casa": {
+    "forms": [
+      "casa",
+      "casas"
+    ],
+    "sense": "house",
+    "block": [
+      "casa blanca",
+      "casa de moneda",
+      "casa por casa"
+    ]
+  },
+  "dia": {
+    "forms": [
+      "dia",
+      "dias"
+    ],
+    "sense": "day",
+    "block": [
+      "dia de hoy",
+      "dias de hoy",
+      "el dia de",
+      "al dia siguiente",
+      "dia siguiente",
+      "buenos dias",
+      "buen dia",
+      "hoy en dia",
+      "todos los dias",
+      "al dia",
+      "dia del amor",
+      "dia de la",
+      "dia internacional",
+      "dia de las"
+    ]
+  },
+  "ano": {
+    "forms": [
+      "ano",
+      "anos"
+    ],
+    "sense": "year"
+  },
+  "semana": {
+    "forms": [
+      "semana",
+      "semanas"
+    ],
+    "sense": "week"
+  },
+  "ciudad": {
+    "forms": [
+      "ciudad",
+      "ciudades"
+    ],
+    "sense": "city"
+  },
+  "mujer": {
+    "forms": [
+      "mujer",
+      "mujeres"
+    ],
+    "sense": "woman"
+  },
+  "maestro": {
+    "forms": [
+      "maestro",
+      "maestros",
+      "maestra",
+      "maestras"
+    ],
+    "sense": "teacher"
+  },
+  "cama": {
+    "forms": [
+      "cama",
+      "camas"
+    ],
+    "sense": "bed (hospital)"
+  },
+  "enfermedad": {
+    "forms": [
+      "enfermedad",
+      "enfermedades"
+    ],
+    "sense": "illness"
+  },
+  "vacuna": {
+    "forms": [
+      "vacuna",
+      "vacunas"
+    ],
+    "sense": "vaccine"
+  },
+  "gobierno": {
+    "forms": [
+      "gobierno",
+      "gobiernos"
+    ],
+    "sense": "government"
+  },
+  "persona": {
+    "forms": [
+      "persona",
+      "personas"
+    ],
+    "sense": "person"
+  },
+  "nino": {
+    "forms": [
+      "nino",
+      "ninos",
+      "nina",
+      "ninas"
+    ],
+    "sense": "child"
+  },
+  "gente": {
+    "forms": [
+      "gente"
+    ],
+    "sense": "people"
+  },
+  "familia": {
+    "forms": [
+      "familia",
+      "familias"
+    ],
+    "sense": "family"
+  },
+  "joven": {
+    "forms": [
+      "joven",
+      "jovenes"
+    ],
+    "sense": "young person"
+  },
+  "escuela": {
+    "forms": [
+      "escuela",
+      "escuelas"
+    ],
+    "sense": "school"
+  },
+  "medico": {
+    "forms": [
+      "medico",
+      "medicos",
+      "medica",
+      "medicas"
+    ],
+    "sense": "doctor/medical",
+    "block": [
+      "equipo medico",
+      "personal medico",
+      "centro medico",
+      "servicio medico",
+      "seguro medico",
+      "medico nacional",
+      "atencion medica",
+      "unidad medica",
+      "consulta medica",
+      "brigada medica"
+    ]
+  },
+  "pueblo": {
+    "forms": [
+      "pueblo",
+      "pueblos"
+    ],
+    "sense": "the people / town"
+  },
+  "mundo": {
+    "forms": [
+      "mundo"
+    ],
+    "sense": "world",
+    "block": [
+      "todo el mundo",
+      "copa del mundo",
+      "mundo maya",
+      "todo un mundo"
+    ]
+  },
+  "vida": {
+    "forms": [
+      "vida",
+      "vidas"
+    ],
+    "sense": "life"
+  },
+  "educacion": {
+    "forms": [
+      "educacion"
+    ],
+    "sense": "education"
+  },
+  "seguridad": {
+    "forms": [
+      "seguridad"
+    ],
+    "sense": "security"
+  },
+  "apoyo": {
+    "forms": [
+      "apoyo",
+      "apoyos"
+    ],
+    "sense": "support (noun)"
+  },
+  "dinero": {
+    "forms": [
+      "dinero"
+    ],
+    "sense": "money"
+  },
+  "hombre": {
+    "forms": [
+      "hombre",
+      "hombres"
+    ],
+    "sense": "man"
+  },
+  "madre": {
+    "forms": [
+      "madre",
+      "madres",
+      "mama",
+      "mamas"
+    ],
+    "sense": "mother"
+  },
+  "padre": {
+    "forms": [
+      "padre",
+      "padres",
+      "papa",
+      "papas"
+    ],
+    "sense": "father",
+    "block": [
+      "papa francisco"
+    ]
+  },
+  "gracias": {
+    "forms": [
+      "gracias"
+    ],
+    "sense": "thanks",
+    "continuity": true
+  },
+  "actividad": {
+    "forms": [
+      "actividad",
+      "actividades"
+    ],
+    "sense": "activity",
+    "continuity": true
+  },
+  "atender": {
+    "forms": [
+      "atender",
+      "atiende",
+      "atienden",
+      "atendemos",
+      "atendiendo",
+      "atendido",
+      "atendidos",
+      "atendieron"
+    ],
+    "sense": "to attend to",
+    "continuity": true
+  },
+  "derecho": {
+    "forms": [
+      "derecho",
+      "derechos"
+    ],
+    "sense": "right (entitlement)",
+    "block": [
+      "estado de derecho",
+      "derecho aviente",
+      "por derecho"
+    ],
+    "continuity": true
+  },
+  "director": {
+    "forms": [
+      "director",
+      "directora",
+      "directores"
+    ],
+    "sense": "director",
+    "continuity": true
+  },
+  "pregunta": {
+    "forms": [
+      "pregunta",
+      "preguntas"
+    ],
+    "sense": "question",
+    "continuity": true
+  },
+  "hablar": {
+    "forms": [
+      "hablar",
+      "habla",
+      "hablan",
+      "hablamos",
+      "hablando",
+      "hablo"
+    ],
+    "sense": "to speak",
+    "continuity": true
+  },
+  "estado": {
+    "forms": [
+      "estado",
+      "estados"
+    ],
+    "sense": "state (federal entity)",
+    "exclude": "MEASURED 2026-08-01: 135/498 right-neighbours are 'unidos' (Estados Unidos, a proper noun that would be fingerspelled), and a large share of the rest are the participle of estar ('hemos estado instalando'). Two different non-target readings dominate. Excluded rather than block-filtered -- too little would survive to be worth the reviewer's time."
+  },
+  "equipo": {
+    "forms": [
+      "equipo",
+      "equipos"
+    ],
+    "sense": "AMBIGUOUS: team vs equipment",
+    "exclude": "MEASURED 2026-08-01: three live senses in this corpus -- sports team ('equipos profesionales'), physical equipment ('equipos tecnologicos'), and staff/cabinet ('excelente equipo. El gabinete'). This is the 'mesa' failure mode exactly. Would need per-occurrence sense tagging to use; excluded from this batch."
+  }
+}
